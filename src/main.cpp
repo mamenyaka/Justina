@@ -1,7 +1,8 @@
-#include <QApplication>
-#include <iostream>
-
 #include "mapview.hpp"
+
+#include <QApplication>
+
+#include <iostream>
 
 int main(int argc, char *argv[])
 {
@@ -14,7 +15,7 @@ int main(int argc, char *argv[])
   QApplication app(argc, argv);
 
   MapView mapview;
-  mapview.input(argv[1]);
+  mapview.init(argv[1]);
 
   return app.exec();
 }

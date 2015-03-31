@@ -1,16 +1,9 @@
 #include "mapview.hpp"
-#include "map.hpp"
 #include "traffic.hpp"
 
 #include <QGraphicsItem>
 #include <QPaintEvent>
 #include <QWheelEvent>
-#include <QMouseEvent>
-
-#include <osmium/io/any_input.hpp>
-
-osmium::memory::Buffer buffer;
-nodes_type nodes;
 
 MapView::MapView(QWidget *parent):
   QGraphicsView(parent)
@@ -22,43 +15,46 @@ MapView::MapView(QWidget *parent):
   setDragMode(ScrollHandDrag);
   setViewportUpdateMode(FullViewportUpdate);
   resize(800, 600);
+
+  city = new Traffic;
 }
 
 MapView::~MapView()
 {
-  delete traffic;
-  delete map;
+  t.exit();
+
+  delete city;
   delete scene();
 }
 
-void MapView::input(const std::string& in)
+void MapView::init(const std::string& in)
 {
-  std::cerr << "Reading map from " << in << "\n";
-  buffer = osmium::io::read_file(in);
-  google::protobuf::ShutdownProtobufLibrary();
+  city->init(in);
 
-  map = new Map(buffer, nodes, scene());
-  map->clean_buffer();
-  map->draw_map();
+  connect(&timer, &QTimer::timeout, [=]() {
+    city->update(scene());
+  });
+  timer.start(100);
 
-  traffic = new Traffic(buffer, nodes, scene());
+  city->moveToThread(&t);
+  t.start();
 
-  for (const Car &car : traffic->get_cars())
+  for (const Car &car : city->get_cars())
   {
     QGraphicsRectItem *rect = scene()->addRect(0.0, 0.0, 0.001, 0.001, QPen(Qt::black, 0), QBrush(Qt::gray));
-    rect->setPos(car.get_lon() - 0.0005, -car.get_lat() - 0.0005);
+    rect->setPos(car.get_loc().lon - 0.0005, -car.get_loc().lat - 0.0005);
     rects.push_back(rect);
   }
-  for (const Gangster &gangster : traffic->get_gangsters())
+  for (const Gangster &gangster : city->get_gangsters())
   {
     QGraphicsRectItem *rect = scene()->addRect(0.0, 0.0, 0.001, 0.001, QPen(Qt::black, 0), QBrush(Qt::red));
-    rect->setPos(gangster.get_lon() - 0.0005, -gangster.get_lat() - 0.0005);
+    rect->setPos(gangster.get_loc().lon - 0.0005, -gangster.get_loc().lat - 0.0005);
     rects.push_back(rect);
   }
-  for (const Cop &cop : traffic->get_cops())
+  for (const Cop &cop : city->get_cops())
   {
     QGraphicsRectItem *rect = scene()->addRect(0.0, 0.0, 0.001, 0.001, QPen(Qt::black, 0), QBrush(Qt::blue));
-    rect->setPos(cop.get_lon() - 0.0005, -cop.get_lat() - 0.0005);
+    rect->setPos(cop.get_loc().lon - 0.0005, -cop.get_loc().lat - 0.0005);
     rects.push_back(rect);
   }
 
@@ -71,17 +67,17 @@ void MapView::paintEvent(QPaintEvent* event)
   QGraphicsView::paintEvent(event);
 
   auto it = rects.begin();
-  for (const Car &car : traffic->get_cars())
+  for (const Car &car : city->get_cars())
   {
-    (*it++)->setPos(car.get_lon() - 0.0005, -car.get_lat() - 0.0005);
+    (*it++)->setPos(car.get_loc().lon - 0.0005, -car.get_loc().lat - 0.0005);
   }
-  for (const Gangster &gangster : traffic->get_gangsters())
+  for (const Gangster &gangster : city->get_gangsters())
   {
-    (*it++)->setPos(gangster.get_lon() - 0.0005, -gangster.get_lat() - 0.0005);
+    (*it++)->setPos(gangster.get_loc().lon - 0.0005, -gangster.get_loc().lat - 0.0005);
   }
-  for (const Cop &cop : traffic->get_cops())
+  for (const Cop &cop : city->get_cops())
   {
-    (*it++)->setPos(cop.get_lon() - 0.0005, -cop.get_lat() - 0.0005);
+    (*it++)->setPos(cop.get_loc().lon - 0.0005, -cop.get_loc().lat - 0.0005);
   }
 }
 
@@ -90,11 +86,4 @@ void MapView::wheelEvent(QWheelEvent* event)
   double factor = std::pow(1.2, event->angleDelta().y() / 240.0);
   scale(factor, factor);
   event->accept();
-}
-
-void MapView::mouseDoubleClickEvent(QMouseEvent* event)
-{
-  QGraphicsView::mouseDoubleClickEvent(event);
-
-  traffic->start();
 }
