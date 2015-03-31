@@ -16,6 +16,7 @@ int main(int argc, char *argv[])
 
   MapView mapview;
   mapview.init(argv[1]);
+  mapview.show();
 
   return app.exec();
 }

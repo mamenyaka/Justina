@@ -8,5 +8,5 @@ find_package(Boost 1.55 REQUIRED)
 find_package(Osmium REQUIRED COMPONENTS io sparsehash)
 
 add_compile_options(-std=c++11 -O3 -g)
-add_executable(${PROJECT_NAME} main.cpp traffic.cpp mapview.cpp)
+add_executable(${PROJECT_NAME} main.cpp mapview.cpp traffic.cpp create_graph.cpp)
 target_link_libraries(${PROJECT_NAME} ${OSMIUM_LIBRARIES} Qt5::Widgets)
