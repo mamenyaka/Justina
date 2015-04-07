@@ -1,13 +1,15 @@
 #include "traffic.hpp"
 #include "create_graph.hpp"
 
-# include <osmium/memory/buffer.hpp>
-# include <osmium/io/any_input.hpp>
-# include <osmium/index/map/sparse_mem_table.hpp>
-# include <osmium/handler/node_locations_for_ways.hpp>
-# include <osmium/visitor.hpp>
+#include <osmium/memory/buffer.hpp>
+#include <osmium/io/any_input.hpp>
+#include <osmium/index/map/sparse_mem_table.hpp>
+#include <osmium/handler/node_locations_for_ways.hpp>
+#include <osmium/visitor.hpp>
 
-# include <iostream>
+#include <QGraphicsScene>
+
+#include <iostream>
 
 /*
 std::ostream& operator<<(std::ostream& out, const Location& loc)
@@ -42,6 +44,22 @@ void Traffic::init_graph(const std::string& in)
 
   std::cerr << "verticies: " << boost::num_vertices(graph) << std::endl;
   std::cerr << "edges: " << boost::num_edges(graph) << std::endl;
+}
+
+void Traffic::init_map(QGraphicsScene* scene)
+{
+  graph_type::edge_iterator it, end;
+  boost::tie(it, end) = boost::edges(graph);
+  for ( ; it != end; it++)
+  {
+    const edge_type e = *it;
+    const vertex_type u = boost::source(e, graph);
+    const vertex_type v = boost::target(e, graph);
+
+    scene->addLine(vertex_location_map[u].lon, -vertex_location_map[u].lat,
+                   vertex_location_map[v].lon, -vertex_location_map[v].lat,
+                   QPen(Qt::white, 0));
+  }
 }
 
 void Traffic::init_traffic()
@@ -91,7 +109,7 @@ void Traffic::update()
   {
     navigate(car);
 
-    edge_type e = boost::edge(car.curr, car.prev, graph).first;
+    const edge_type e = boost::edge(car.curr, car.prev, graph).first;
     future[e]++;
   }
 
@@ -119,13 +137,23 @@ void Traffic::navigate(Car& car)
   if (size > 1)
   {
     std::vector<vertex_type> next;
+    //int max = 0;
 
     for (auto it = begin; it != end; it++)
     {
       const vertex_type v = *it;
 
       if (car.prev != v)
+      {
         next.push_back(v);
+
+        /*const edge_type e = boost::edge(car.curr, v, graph).first;
+        if (edge_weight_map[e] > max)
+        {
+          max = edge_weight_map[e];
+          u = v;
+        }*/
+      }
     }
 
     u = next[rand() % next.size()];

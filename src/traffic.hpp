@@ -6,6 +6,8 @@
 
 # include <QObject>
 
+class QGraphicsScene;
+
 class Traffic : public QObject
 {
   Q_OBJECT
@@ -24,8 +26,8 @@ public:
   Traffic(QObject* parent = 0);
 
   void init_graph(const std::string& in);
+  void init_map(QGraphicsScene *scene);
   void init_traffic();
-  //void draw_map(QGraphicsScene *scene);
   void update();
 
   const std::vector<Car>& get_cars() const;

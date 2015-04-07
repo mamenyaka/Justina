@@ -1,25 +1,29 @@
 #ifndef MAPVIEW_HPP
 # define MAPVIEW_HPP
 
+# include "traffic.hpp"
+
 # include <QGraphicsView>
+# include <QGraphicsScene>
 # include <QThread>
 # include <QTimer>
+
+# include <vector>
 
 class QGraphicsItem;
 class QPaintEvent;
 class QWheelEvent;
 
-class Traffic;
-
 class MapView : public QGraphicsView
 {
   Q_OBJECT
 
-  QGraphicsScene scene;
+  Traffic city;
 
-  QThread t;
+  QGraphicsScene scene;
+  QThread thread;
   QTimer timer;
-  Traffic* city;
+
   std::vector<QGraphicsRectItem*> cars, gangsters, cops;
 
 public:

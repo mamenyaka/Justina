@@ -20,84 +20,88 @@ MapView::MapView(QWidget* parent):
 MapView::~MapView()
 {
   timer.stop();
-  t.exit();
-
-  delete city;
+  thread.quit();
+  thread.wait();
 }
 
 void MapView::init(const std::string& in)
 {
-  city = new Traffic;
-  city->init_graph(in);
-  city->init_traffic();
+  city.init_graph(in);
+  city.init_map(&scene);
+  city.init_traffic();
+  city.moveToThread(&thread);
 
   connect(&timer, &QTimer::timeout, [=]() {
-    city->update();
+    city.update();
     scene.update();
   });
+
   timer.start(100);
-
-  city->moveToThread(&t);
-  t.start();
-
-  for (const Car& car : city->get_cars())
-  {
-    QGraphicsRectItem* rect = scene.addRect(0.0, 0.0, 0.001, 0.001, QPen(Qt::black, 0), QBrush(Qt::gray));
-    rect->setPos(car.loc.lon - 0.0005, -car.loc.lat - 0.0005);
-    cars.push_back(rect);
-  }
-
-  for (const Gangster& gangster : city->get_gangsters())
-  {
-    QGraphicsRectItem* rect = scene.addRect(0.0, 0.0, 0.001, 0.001, QPen(Qt::black, 0), QBrush(Qt::red));
-    rect->setPos(gangster.loc.lon - 0.0005, -gangster.loc.lat - 0.0005);
-    gangsters.push_back(rect);
-  }
-
-  for (const Cop& cop : city->get_cops())
-  {
-    QGraphicsRectItem* rect = scene.addRect(0.0, 0.0, 0.001, 0.001, QPen(Qt::black, 0), QBrush(Qt::blue));
-    rect->setPos(cop.loc.lon - 0.0005, -cop.loc.lat - 0.0005);
-    cops.push_back(rect);
-  }
-
-  fitInView(scene.itemsBoundingRect(), Qt::KeepAspectRatio);
+  thread.start();
 }
 
 void MapView::paintEvent(QPaintEvent* event)
 {
   QGraphicsView::paintEvent(event);
 
+  if (cars.empty())
   {
-    const auto it1 = cars.begin();
-    const auto it2 = city->get_cars().begin();
-    for (int i = 0; i < cars.size(); i++)
+    for (const Car& car : city.get_cars())
     {
-      QGraphicsRectItem* rect = *(it1+i);
-      const Car& car = *(it2+i);
+      QGraphicsRectItem* rect = scene.addRect(0.0, 0.0, 0.001, 0.001, QPen(Qt::black, 0), QBrush(Qt::gray));
       rect->setPos(car.loc.lon - 0.0005, -car.loc.lat - 0.0005);
+      cars.push_back(rect);
     }
-  }
 
-  {
-    const auto it1 = gangsters.begin();
-    const auto it2 = city->get_gangsters().begin();
-    for (int i = 0; i < gangsters.size(); i++)
+    for (const Gangster& gangster : city.get_gangsters())
     {
-      QGraphicsRectItem* rect = *(it1+i);
-      const Gangster& gangster = *(it2+i);
+      QGraphicsRectItem* rect = scene.addRect(0.0, 0.0, 0.001, 0.001, QPen(Qt::black, 0), QBrush(Qt::red));
       rect->setPos(gangster.loc.lon - 0.0005, -gangster.loc.lat - 0.0005);
+      gangsters.push_back(rect);
     }
-  }
 
-  {
-    const auto it1 = cops.begin();
-    const auto it2 = city->get_cops().begin();
-    for (int i = 0; i < cops.size(); i++)
+    for (const Cop& cop : city.get_cops())
     {
-      QGraphicsRectItem* rect = *(it1+i);
-      const Cop& cop = *(it2+i);
+      QGraphicsRectItem* rect = scene.addRect(0.0, 0.0, 0.001, 0.001, QPen(Qt::black, 0), QBrush(Qt::blue));
       rect->setPos(cop.loc.lon - 0.0005, -cop.loc.lat - 0.0005);
+      cops.push_back(rect);
+    }
+
+    fitInView(scene.itemsBoundingRect(), Qt::KeepAspectRatio);
+  }
+  else
+  {
+    {
+      const auto it1 = cars.begin();
+      const auto it2 = city.get_cars().begin();
+      for (int i = 0; i < cars.size(); i++)
+      {
+        QGraphicsRectItem* rect = *(it1+i);
+        const Car& car = *(it2+i);
+        rect->setPos(car.loc.lon - 0.0005, -car.loc.lat - 0.0005);
+      }
+    }
+
+    {
+      const auto it1 = gangsters.begin();
+      const auto it2 = city.get_gangsters().begin();
+      for (int i = 0; i < gangsters.size(); i++)
+      {
+        QGraphicsRectItem* rect = *(it1+i);
+        const Gangster& gangster = *(it2+i);
+        rect->setPos(gangster.loc.lon - 0.0005, -gangster.loc.lat - 0.0005);
+      }
+    }
+
+    {
+      const auto it1 = cops.begin();
+      const auto it2 = city.get_cops().begin();
+      for (int i = 0; i < cops.size(); i++)
+      {
+        QGraphicsRectItem* rect = *(it1+i);
+        const Cop& cop = *(it2+i);
+        rect->setPos(cop.loc.lon - 0.0005, -cop.loc.lat - 0.0005);
+      }
     }
   }
 }
