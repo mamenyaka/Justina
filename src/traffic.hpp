@@ -6,6 +6,8 @@
 
 # include <QObject>
 
+# include <random>
+
 class QGraphicsScene;
 
 class Traffic : public QObject
@@ -17,8 +19,8 @@ class Traffic : public QObject
   edge_weight_map_type edge_weight_map;
 
   std::vector<Car> cars;
-  std::vector<Gangster> gangsters;
-  std::vector<Cop> cops;
+
+  std::default_random_engine gen;
 
   void navigate(Car& car);
 
@@ -27,12 +29,10 @@ public:
 
   void init_graph(const std::string& in);
   void init_map(QGraphicsScene *scene);
-  void init_traffic();
+  void init_traffic(const int civil, const int gangster, const int cop);
   void update();
 
   const std::vector<Car>& get_cars() const;
-  const std::vector<Gangster>& get_gangsters() const;
-  const std::vector<Cop>& get_cops() const;
 };
 
 #endif                                                     // TRAFFIC_HPP

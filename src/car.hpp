@@ -3,31 +3,29 @@
 
 # include "graph.hpp"
 
+struct CarType
+{
+  enum value
+  {
+    Civil,
+    Gangster,
+    Cop
+  };
+};
+
 class Car
 {
 public:
-  vertex_type curr, prev = 0;
-  Location loc;
+  CarType::value type;                                      // car type
+  edge_type curr;                                           // current road
+  vertex_type prev;                                         // entry point for current road
+  Location loc;                                             // GPS location
 
-  Car(const vertex_type& curr, const Location& loc):
+  Car(const CarType::value type, const edge_type& curr, const vertex_type& prev, const Location& loc):
+    type(type),
     curr(curr),
+    prev(prev),
     loc(loc)
-  {}
-};
-
-class Gangster : public Car
-{
-public:
-  Gangster(const vertex_type& curr, const Location& loc):
-    Car(curr, loc)
-  {}
-};
-
-class Cop : public Car
-{
-public:
-  Cop(const vertex_type& curr, const Location& loc):
-    Car(curr, loc)
   {}
 };
 

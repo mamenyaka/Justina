@@ -4,15 +4,10 @@
 # include "traffic.hpp"
 
 # include <QGraphicsView>
-# include <QGraphicsScene>
 # include <QThread>
 # include <QTimer>
 
 # include <vector>
-
-class QGraphicsItem;
-class QPaintEvent;
-class QWheelEvent;
 
 class MapView : public QGraphicsView
 {
@@ -24,7 +19,7 @@ class MapView : public QGraphicsView
   QThread thread;
   QTimer timer;
 
-  std::vector<QGraphicsRectItem*> cars, gangsters, cops;
+  std::vector<QGraphicsEllipseItem*> cars;
 
 public:
   MapView(QWidget* parent = 0);
@@ -35,6 +30,7 @@ public:
 protected:
   void paintEvent(QPaintEvent* event);
   void wheelEvent(QWheelEvent* event);
+  void resizeEvent(QResizeEvent* event);
 };
 
 #endif                                                      // MAPVIEW_HPP

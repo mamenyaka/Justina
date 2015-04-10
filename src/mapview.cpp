@@ -1,19 +1,22 @@
 #include "mapview.hpp"
 #include "traffic.hpp"
 
-#include <QGraphicsItem>
-#include <QPaintEvent>
+#include <QGraphicsEllipseItem>
 #include <QWheelEvent>
 
 MapView::MapView(QWidget* parent):
   QGraphicsView(parent)
 {
   setScene(&scene);
+
   setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform);
   setBackgroundBrush(QBrush(QColor(70, 130, 180), Qt::SolidPattern));
-  setTransformationAnchor(AnchorUnderMouse);
-  setDragMode(ScrollHandDrag);
   setViewportUpdateMode(FullViewportUpdate);
+  setDragMode(ScrollHandDrag);
+
+  setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
   resize(800, 600);
 }
 
@@ -28,13 +31,36 @@ void MapView::init(const std::string& in)
 {
   city.init_graph(in);
   city.init_map(&scene);
-  city.init_traffic();
+  city.init_traffic(100, 10, 1);
+
+  for (const Car& car : city.get_cars())
+  {
+    QBrush brush(Qt::SolidPattern);
+
+    if (car.type == CarType::Civil)
+    {
+      brush.setColor(Qt::gray);
+    }
+    else if (car.type == CarType::Gangster)
+    {
+      brush.setColor(Qt::red);
+    }
+    else if (car.type == CarType::Cop)
+    {
+      brush.setColor(Qt::blue);
+    }
+
+    QGraphicsEllipseItem* c = scene.addEllipse(0.0, 0.0, 0.001, 0.001, QPen(Qt::black, 0), brush);
+    c->setPos(car.loc.lon - 0.0005, -car.loc.lat - 0.0005);
+    cars.push_back(c);
+  }
+
   city.moveToThread(&thread);
 
   connect(&timer, &QTimer::timeout, [=]() {
     city.update();
     scene.update();
-  });
+   });
 
   timer.start(100);
   thread.start();
@@ -44,65 +70,13 @@ void MapView::paintEvent(QPaintEvent* event)
 {
   QGraphicsView::paintEvent(event);
 
-  if (cars.empty())
+  auto it1 = cars.begin();
+  auto it2 = city.get_cars().begin();
+  while (it1 != cars.end())
   {
-    for (const Car& car : city.get_cars())
-    {
-      QGraphicsRectItem* rect = scene.addRect(0.0, 0.0, 0.001, 0.001, QPen(Qt::black, 0), QBrush(Qt::gray));
-      rect->setPos(car.loc.lon - 0.0005, -car.loc.lat - 0.0005);
-      cars.push_back(rect);
-    }
-
-    for (const Gangster& gangster : city.get_gangsters())
-    {
-      QGraphicsRectItem* rect = scene.addRect(0.0, 0.0, 0.001, 0.001, QPen(Qt::black, 0), QBrush(Qt::red));
-      rect->setPos(gangster.loc.lon - 0.0005, -gangster.loc.lat - 0.0005);
-      gangsters.push_back(rect);
-    }
-
-    for (const Cop& cop : city.get_cops())
-    {
-      QGraphicsRectItem* rect = scene.addRect(0.0, 0.0, 0.001, 0.001, QPen(Qt::black, 0), QBrush(Qt::blue));
-      rect->setPos(cop.loc.lon - 0.0005, -cop.loc.lat - 0.0005);
-      cops.push_back(rect);
-    }
-
-    fitInView(scene.itemsBoundingRect(), Qt::KeepAspectRatio);
-  }
-  else
-  {
-    {
-      const auto it1 = cars.begin();
-      const auto it2 = city.get_cars().begin();
-      for (int i = 0; i < cars.size(); i++)
-      {
-        QGraphicsRectItem* rect = *(it1+i);
-        const Car& car = *(it2+i);
-        rect->setPos(car.loc.lon - 0.0005, -car.loc.lat - 0.0005);
-      }
-    }
-
-    {
-      const auto it1 = gangsters.begin();
-      const auto it2 = city.get_gangsters().begin();
-      for (int i = 0; i < gangsters.size(); i++)
-      {
-        QGraphicsRectItem* rect = *(it1+i);
-        const Gangster& gangster = *(it2+i);
-        rect->setPos(gangster.loc.lon - 0.0005, -gangster.loc.lat - 0.0005);
-      }
-    }
-
-    {
-      const auto it1 = cops.begin();
-      const auto it2 = city.get_cops().begin();
-      for (int i = 0; i < cops.size(); i++)
-      {
-        QGraphicsRectItem* rect = *(it1+i);
-        const Cop& cop = *(it2+i);
-        rect->setPos(cop.loc.lon - 0.0005, -cop.loc.lat - 0.0005);
-      }
-    }
+    QGraphicsEllipseItem* c = *(it1++);
+    const Car& car = *(it2++);
+    c->setPos(car.loc.lon - 0.0005, -car.loc.lat - 0.0005);
   }
 }
 
@@ -111,4 +85,11 @@ void MapView::wheelEvent(QWheelEvent* event)
   const double factor = std::pow(1.2, event->angleDelta().y() / 240.0);
   scale(factor, factor);
   event->accept();
+}
+
+void MapView::resizeEvent(QResizeEvent* event)
+{
+  QGraphicsView::resizeEvent(event);
+
+  fitInView(scene.itemsBoundingRect(), Qt::KeepAspectRatio);
 }

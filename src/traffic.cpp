@@ -24,8 +24,6 @@ Traffic::Traffic(QObject* parent):
 {
   vertex_location_map = boost::get(boost::vertex_name, graph);
   edge_weight_map = boost::get(boost::edge_weight, graph);
-
-  srand(std::time(0));
 }
 
 void Traffic::init_graph(const std::string& in)
@@ -50,47 +48,55 @@ void Traffic::init_map(QGraphicsScene* scene)
 {
   graph_type::edge_iterator it, end;
   boost::tie(it, end) = boost::edges(graph);
-  for ( ; it != end; it++)
+  for ( ; it != end; ++it)
   {
-    const edge_type e = *it;
-    const vertex_type u = boost::source(e, graph);
-    const vertex_type v = boost::target(e, graph);
+    const edge_type& e = *it;
+    const vertex_type& u = boost::source(e, graph);
+    const vertex_type& v = boost::target(e, graph);
+    const Location& locu = vertex_location_map[u];
+    const Location& locv = vertex_location_map[v];
 
-    scene->addLine(vertex_location_map[u].lon, -vertex_location_map[u].lat,
-                   vertex_location_map[v].lon, -vertex_location_map[v].lat,
-                   QPen(Qt::white, 0));
+    scene->addLine(locu.lon, -locu.lat, locv.lon, -locv.lat, QPen(Qt::white, 0));
   }
 }
 
-void Traffic::init_traffic()
+void Traffic::init_traffic(const int civil, const int gangster, const int cop)
 {
-  graph_type::vertex_iterator it, end;
-  boost::tie(it, end) = boost::vertices(graph);
-  for ( ; it != end; it++)
-  {
-    const vertex_type u = *it;
-    const int r = rand();
+  std::uniform_int_distribution<unsigned long> dis(0, boost::num_edges(graph)-1);
 
-    if (r % 5 == 0)
+  const int sum = civil + gangster + cop;
+  for (int i = 0; i < sum; i++)
+  {
+    CarType::value type;
+
+    if (i < civil)
     {
-      Car car(u, vertex_location_map[u]);
-      cars.push_back(car);
+      type = CarType::Civil;
     }
-    else if (r % 51 == 0)
+    else if (i < civil + gangster)
     {
-      Gangster gangster(u, vertex_location_map[u]);
-      gangsters.push_back(gangster);
+      type = CarType::Gangster;
     }
-    else if (r % 501 == 0)
+    else
     {
-      Cop cop(u, vertex_location_map[u]);
-      cops.push_back(cop);
+      type = CarType::Cop;
     }
+
+    graph_type::edge_iterator it = boost::edges(graph).first;
+
+    const edge_type& e = *std::next(it, dis(gen));
+    const vertex_type& v = boost::source(e, graph);
+    const Location& loc = vertex_location_map[v];
+
+    Car car(type, e, v, loc);
+    cars.push_back(car);
   }
 
-  std::cerr << "Number of cars: " << cars.size() << std::endl;
-  std::cerr << "Number of gangsters: " << gangsters.size() << std::endl;
-  std::cerr << "Number of cops: " << cops.size() << std::endl;
+  std::cerr << "cars: " << cars.size()
+            << " (" << civil
+            << ", " << gangster
+            << ", " << cop
+            << ")" << std::endl;
 }
 
 void Traffic::update()
@@ -99,9 +105,9 @@ void Traffic::update()
 
   graph_type::edge_iterator it, end;
   boost::tie(it, end) = boost::edges(graph);
-  for ( ; it != end; it++)
+  for ( ; it != end; ++it)
   {
-    const edge_type e = *it;
+    const edge_type& e = *it;
     future[e] = 0;
   }
 
@@ -109,18 +115,7 @@ void Traffic::update()
   {
     navigate(car);
 
-    const edge_type e = boost::edge(car.curr, car.prev, graph).first;
-    future[e]++;
-  }
-
-  for (Gangster& gangster : gangsters)
-  {
-    navigate(gangster);
-  }
-
-  for (Cop& cop : cops)
-  {
-    navigate(cop);
+    future[car.curr]++;
   }
 
   edge_weight_map = std::move(future);
@@ -128,53 +123,38 @@ void Traffic::update()
 
 void Traffic::navigate(Car& car)
 {
-  graph_type::adjacency_iterator begin, end;
-  boost::tie(begin, end) = boost::adjacent_vertices(car.curr, graph);
-  const int size = std::distance(begin, end);
-
-  vertex_type u = *begin;
-
-  if (size > 1)
+  vertex_type u;                                            // exit point for current road
+  if ((u = boost::source(car.curr, graph)) == car.prev)
   {
-    std::vector<vertex_type> next;
-    //int max = 0;
-
-    for (auto it = begin; it != end; it++)
-    {
-      const vertex_type v = *it;
-
-      if (car.prev != v)
-      {
-        next.push_back(v);
-
-        /*const edge_type e = boost::edge(car.curr, v, graph).first;
-        if (edge_weight_map[e] > max)
-        {
-          max = edge_weight_map[e];
-          u = v;
-        }*/
-      }
-    }
-
-    u = next[rand() % next.size()];
+    u = boost::target(car.curr, graph);
   }
 
-  car.prev = car.curr;
-  car.curr = u;
-  car.loc = vertex_location_map[car.curr];
+  std::vector<edge_type> next;                              // next available roads
+
+  graph_type::adjacency_iterator it, end;
+  boost::tie(it, end) = boost::adjacent_vertices(u, graph);
+  for ( ; it != end; ++it)
+  {
+    const vertex_type& v = *it;
+    if (v != car.prev)
+    {
+      const edge_type& e = boost::edge(u, v, graph).first;
+      next.push_back(e);
+    }
+  }
+
+  if (!next.empty())
+  {
+    std::uniform_int_distribution<int> dis(0, next.size()-1);
+
+    car.curr = next[dis(gen)];
+  }
+
+  car.prev = u;
+  car.loc = vertex_location_map[u];
 }
 
 const std::vector<Car>& Traffic::get_cars() const
 {
   return cars;
-}
-
-const std::vector<Gangster>& Traffic::get_gangsters() const
-{
-  return gangsters;
-}
-
-const std::vector<Cop>& Traffic::get_cops() const
-{
-  return cops;
 }
