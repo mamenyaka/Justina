@@ -6,29 +6,23 @@
 #include <osmium/index/map/sparse_mem_table.hpp>
 #include <osmium/handler/node_locations_for_ways.hpp>
 #include <osmium/visitor.hpp>
+#include <osmium/geom/haversine.hpp>
+#include <osmium/geom/mercator_projection.hpp>
 
 #include <QGraphicsScene>
 
 #include <iostream>
 
-/*
-std::ostream& operator<<(std::ostream& out, const Location& loc)
-{
-  out << "(" << loc.lon << ", " << loc.lat << ")";
-  return out;
-}
-*/
-
 Traffic::Traffic(QObject* parent):
   QObject(parent)
 {
-  vertex_location_map = boost::get(boost::vertex_name, graph);
-  edge_weight_map = boost::get(boost::edge_weight, graph);
+  std::random_device rd;
+  gen.seed(rd());
 }
 
 void Traffic::init_graph(const std::string& in)
 {
-  std::cerr << "Reading map from " << in << std::endl;
+  std::cerr << "Constructing graph from " << in << std::endl;
 
   osmium::memory::Buffer buffer = osmium::io::read_file(in);
   google::protobuf::ShutdownProtobufLibrary();
@@ -53,15 +47,20 @@ void Traffic::init_map(QGraphicsScene* scene)
     const edge_type& e = *it;
     const vertex_type& u = boost::source(e, graph);
     const vertex_type& v = boost::target(e, graph);
-    const Location& locu = vertex_location_map[u];
-    const Location& locv = vertex_location_map[v];
+    const osmium::Location& a = boost::get(boost::vertex_name, graph, u);
+    const osmium::Location& b = boost::get(boost::vertex_name, graph, v);
 
-    scene->addLine(locu.lon, -locu.lat, locv.lon, -locv.lat, QPen(Qt::white, 0));
+    scene->addLine(a.x(), -a.y(), b.x(), -b.y(), QPen(Qt::white, 0));
   }
 }
 
 void Traffic::init_traffic(const int civil, const int gangster, const int cop)
 {
+  std::cerr << "Populating traffic with "
+            << civil << " civil, "
+            << gangster << " gangster and "
+            << cop << " cop cars" << std::endl;
+
   std::uniform_int_distribution<unsigned long> dis(0, boost::num_edges(graph)-1);
 
   const int sum = civil + gangster + cop;
@@ -82,76 +81,78 @@ void Traffic::init_traffic(const int civil, const int gangster, const int cop)
       type = CarType::Cop;
     }
 
-    graph_type::edge_iterator it = boost::edges(graph).first;
-
-    const edge_type& e = *std::next(it, dis(gen));
+    const edge_type& e = *std::next(boost::edges(graph).first, dis(gen));
     const vertex_type& v = boost::source(e, graph);
-    const Location& loc = vertex_location_map[v];
+    const osmium::Location& loc = boost::get(boost::vertex_name, graph, v);
 
     Car car(type, e, v, loc);
     cars.push_back(car);
   }
 
-  std::cerr << "cars: " << cars.size()
-            << " (" << civil
-            << ", " << gangster
-            << ", " << cop
-            << ")" << std::endl;
+  std::cerr << "cars: " << cars.size() << std::endl;
 }
 
 void Traffic::update()
 {
-  edge_weight_map_type future = edge_weight_map;
-
-  graph_type::edge_iterator it, end;
-  boost::tie(it, end) = boost::edges(graph);
-  for ( ; it != end; ++it)
-  {
-    const edge_type& e = *it;
-    future[e] = 0;
-  }
-
   for (Car& car : cars)
   {
     navigate(car);
-
-    future[car.curr]++;
   }
-
-  edge_weight_map = std::move(future);
 }
 
 void Traffic::navigate(Car& car)
 {
   vertex_type u;                                            // exit point for current road
-  if ((u = boost::source(car.curr, graph)) == car.prev)
+  if ((u = boost::target(car.curr, graph)) == car.prev)
   {
-    u = boost::target(car.curr, graph);
+    u = boost::source(car.curr, graph);
   }
 
-  std::vector<edge_type> next;                              // next available roads
+  const osmium::Location& loc = boost::get(boost::vertex_name, graph, u);
 
-  graph_type::adjacency_iterator it, end;
-  boost::tie(it, end) = boost::adjacent_vertices(u, graph);
-  for ( ; it != end; ++it)
+  const double l = osmium::geom::haversine::distance(osmium::geom::Coordinates(car.loc), osmium::geom::Coordinates(loc));
+
+  if (dist < l)                                             // car travels straigth, no intersections
   {
-    const vertex_type& v = *it;
-    if (v != car.prev)
+    const double ang = std::atan2(osmium::geom::detail::lat_to_y(loc.lat()) - osmium::geom::detail::lat_to_y(car.loc.lat()),
+                                  osmium::geom::detail::lon_to_x(loc.lon()) - osmium::geom::detail::lon_to_x(car.loc.lon()));
+    const double x = std::cos(ang) * dist;
+    const double y = std::sin(ang) * dist;
+
+    car.loc.set_lon(osmium::geom::detail::x_to_lon(osmium::geom::detail::lon_to_x(car.loc.lon()) + x));
+    car.loc.set_lat(osmium::geom::detail::y_to_lat(osmium::geom::detail::lat_to_y(car.loc.lat()) + y));
+  }
+  else                                                      // possible intersection
+  {
+    std::vector<edge_type> next;                              // next available roads
+
+    graph_type::adjacency_iterator it, end;
+    boost::tie(it, end) = boost::adjacent_vertices(u, graph);
+    for ( ; it != end; ++it)
     {
-      const edge_type& e = boost::edge(u, v, graph).first;
-      next.push_back(e);
+      const vertex_type& v = *it;
+      if (v != car.prev)
+      {
+        const edge_type& e = boost::edge(u, v, graph).first;
+        next.push_back(e);
+      }
     }
+
+    if (!next.empty())
+    {
+      std::uniform_int_distribution<int> dis(0, next.size()-1);
+
+      car.curr = next[dis(gen)];
+    }
+
+    car.prev = u;
+    car.loc = loc;
   }
+}
 
-  if (!next.empty())
-  {
-    std::uniform_int_distribution<int> dis(0, next.size()-1);
-
-    car.curr = next[dis(gen)];
-  }
-
-  car.prev = u;
-  car.loc = vertex_location_map[u];
+const int Traffic::get_sleep() const
+{
+  return sleep;
 }
 
 const std::vector<Car>& Traffic::get_cars() const

@@ -15,12 +15,12 @@ class Traffic : public QObject
   Q_OBJECT
 
   graph_type graph;
-  vertex_location_map_type vertex_location_map;
-  edge_weight_map_type edge_weight_map;
 
   std::vector<Car> cars;
-
   std::default_random_engine gen;
+  static constexpr int sleep = 100;                         // simulation timestep
+  static constexpr double speed = 10.0;                     // car speed (10 m/s = 36 km/h)
+  static constexpr double dist = speed*(sleep/1000.0);      // maximum length a car can travel in one turn
 
   void navigate(Car& car);
 
@@ -32,6 +32,7 @@ public:
   void init_traffic(const int civil, const int gangster, const int cop);
   void update();
 
+  const int get_sleep() const;
   const std::vector<Car>& get_cars() const;
 };
 

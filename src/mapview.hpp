@@ -20,6 +20,7 @@ class MapView : public QGraphicsView
   QTimer timer;
 
   std::vector<QGraphicsEllipseItem*> cars;
+  static constexpr int car_size = 1000;
 
 public:
   MapView(QWidget* parent = 0);

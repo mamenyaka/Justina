@@ -31,7 +31,7 @@ void MapView::init(const std::string& in)
 {
   city.init_graph(in);
   city.init_map(&scene);
-  city.init_traffic(100, 10, 1);
+  city.init_traffic(10000, 1000, 100);
 
   for (const Car& car : city.get_cars())
   {
@@ -50,8 +50,8 @@ void MapView::init(const std::string& in)
       brush.setColor(Qt::blue);
     }
 
-    QGraphicsEllipseItem* c = scene.addEllipse(0.0, 0.0, 0.001, 0.001, QPen(Qt::black, 0), brush);
-    c->setPos(car.loc.lon - 0.0005, -car.loc.lat - 0.0005);
+    QGraphicsEllipseItem* c = scene.addEllipse(0, 0, car_size, car_size, QPen(Qt::black, 0), brush);
+    c->setPos(car.loc.x() - car_size/2, -car.loc.y() - car_size/2);
     cars.push_back(c);
   }
 
@@ -62,7 +62,7 @@ void MapView::init(const std::string& in)
     scene.update();
    });
 
-  timer.start(100);
+  timer.start(city.get_sleep());
   thread.start();
 }
 
@@ -76,7 +76,7 @@ void MapView::paintEvent(QPaintEvent* event)
   {
     QGraphicsEllipseItem* c = *(it1++);
     const Car& car = *(it2++);
-    c->setPos(car.loc.lon - 0.0005, -car.loc.lat - 0.0005);
+    c->setPos(car.loc.x() - car_size/2, -car.loc.y() - car_size/2);
   }
 }
 

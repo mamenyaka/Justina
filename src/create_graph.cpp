@@ -1,6 +1,6 @@
 #include "create_graph.hpp"
 
-# include <limits>
+#include <osmium/geom/haversine.hpp>
 
 CreateGraph::CreateGraph(graph_type& graph):
   graph(graph)
@@ -14,7 +14,7 @@ void CreateGraph::way(const osmium::Way& way)
     return;
   }
 
-  vertex_type u = std::numeric_limits<vertex_type>::max();
+  vertex_type u = -1;
   for (const auto& node_ref : way.nodes())
   {
     node_id_map_type::iterator pos;
@@ -23,15 +23,16 @@ void CreateGraph::way(const osmium::Way& way)
 
     if (inserted)
     {
-      const Location loc(node_ref.location().lon(), node_ref.location().lat());
-      pos->second = boost::add_vertex(loc, graph);
+      pos->second = boost::add_vertex(node_ref.location(), graph);
     }
 
     const vertex_type v = pos->second;
 
     if (u+1)
     {
-      boost::add_edge(u, v, 0, graph);
+      const double l = osmium::geom::haversine::distance(osmium::geom::Coordinates(boost::get(boost::vertex_name, graph, u)),
+                                                         osmium::geom::Coordinates(boost::get(boost::vertex_name, graph, v)));
+      boost::add_edge(u, v, l, graph);
     }
 
     u = v;
