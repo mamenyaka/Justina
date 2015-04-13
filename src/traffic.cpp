@@ -61,31 +61,36 @@ void Traffic::init_traffic(const int civil, const int gangster, const int cop)
             << gangster << " gangster and "
             << cop << " cop cars" << std::endl;
 
-  std::uniform_int_distribution<unsigned long> dis(0, boost::num_edges(graph)-1);
+  std::uniform_int_distribution<unsigned long> uni_dis(0, boost::num_edges(graph)-1);
+  std::normal_distribution<> norm_dis(0.0, 5.0);
 
   const int sum = civil + gangster + cop;
   for (int i = 0; i < sum; i++)
   {
     CarType::value type;
+    double speed;
 
     if (i < civil)
     {
       type = CarType::Civil;
+      speed = 10.0 + norm_dis(gen);
     }
     else if (i < civil + gangster)
     {
       type = CarType::Gangster;
+      speed = 15.0 + norm_dis(gen);
     }
     else
     {
       type = CarType::Cop;
+      speed = 15.0 + norm_dis(gen);
     }
 
-    const edge_type& e = *std::next(boost::edges(graph).first, dis(gen));
+    const edge_type& e = *std::next(boost::edges(graph).first, uni_dis(gen));
     const vertex_type& v = boost::source(e, graph);
     const osmium::Location& loc = boost::get(boost::vertex_name, graph, v);
 
-    Car car(type, e, v, loc);
+    Car car(type, e, v, loc, speed);
     cars.push_back(car);
   }
 
@@ -110,6 +115,7 @@ void Traffic::navigate(Car& car)
 
   const osmium::Location& loc = boost::get(boost::vertex_name, graph, u);
 
+  const double dist = car.speed*(sleep/1000.0);             // maximum length a car can travel in one turn
   const double l = osmium::geom::haversine::distance(osmium::geom::Coordinates(car.loc), osmium::geom::Coordinates(loc));
 
   if (dist < l)                                             // car travels straigth, no intersections

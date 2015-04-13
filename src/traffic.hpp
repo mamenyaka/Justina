@@ -19,8 +19,6 @@ class Traffic : public QObject
   std::vector<Car> cars;
   std::default_random_engine gen;
   static constexpr int sleep = 100;                         // simulation timestep
-  static constexpr double speed = 10.0;                     // car speed (10 m/s = 36 km/h)
-  static constexpr double dist = speed*(sleep/1000.0);      // maximum length a car can travel in one turn
 
   void navigate(Car& car);
 
