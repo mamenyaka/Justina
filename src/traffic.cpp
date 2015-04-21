@@ -25,7 +25,6 @@ void Traffic::init_graph(const std::string& in)
   std::cerr << "Constructing graph from " << in << std::endl;
 
   osmium::memory::Buffer buffer = osmium::io::read_file(in);
-  google::protobuf::ShutdownProtobufLibrary();
 
   typedef osmium::index::map::SparseMemTable<osmium::unsigned_object_id_type, osmium::Location> nodes_type;
   nodes_type nodes;
@@ -36,6 +35,8 @@ void Traffic::init_graph(const std::string& in)
 
   std::cerr << "verticies: " << boost::num_vertices(graph) << std::endl;
   std::cerr << "edges: " << boost::num_edges(graph) << std::endl;
+
+  google::protobuf::ShutdownProtobufLibrary();
 }
 
 void Traffic::init_map(QGraphicsScene* scene)
@@ -50,7 +51,8 @@ void Traffic::init_map(QGraphicsScene* scene)
     const osmium::Location& a = boost::get(boost::vertex_name, graph, u);
     const osmium::Location& b = boost::get(boost::vertex_name, graph, v);
 
-    scene->addLine(a.x(), -a.y(), b.x(), -b.y(), QPen(Qt::white, 0));
+    scene->addLine(osmium::geom::detail::lon_to_x(a.lon()), -osmium::geom::detail::lat_to_y(a.lat()),
+                   osmium::geom::detail::lon_to_x(b.lon()), -osmium::geom::detail::lat_to_y(b.lat()), QPen(Qt::white, 0));
   }
 }
 
@@ -73,17 +75,17 @@ void Traffic::init_traffic(const int civil, const int gangster, const int cop)
     if (i < civil)
     {
       type = CarType::Civil;
-      speed = 10.0 + norm_dis(gen);
+      speed = 15.0 + norm_dis(gen);
     }
     else if (i < civil + gangster)
     {
       type = CarType::Gangster;
-      speed = 15.0 + norm_dis(gen);
+      speed = 20.0 + norm_dis(gen);
     }
     else
     {
       type = CarType::Cop;
-      speed = 15.0 + norm_dis(gen);
+      speed = 20.0 + norm_dis(gen);
     }
 
     const edge_type& e = *std::next(boost::edges(graph).first, uni_dis(gen));
@@ -132,14 +134,13 @@ void Traffic::navigate(Car& car)
   {
     std::vector<edge_type> next;                              // next available roads
 
-    graph_type::adjacency_iterator it, end;
-    boost::tie(it, end) = boost::adjacent_vertices(u, graph);
+    graph_type::out_edge_iterator it, end;
+    boost::tie(it, end) = boost::out_edges(u, graph);
     for ( ; it != end; ++it)
     {
-      const vertex_type& v = *it;
-      if (v != car.prev)
+      const edge_type& e = *it;
+      if (e != car.curr)
       {
-        const edge_type& e = boost::edge(u, v, graph).first;
         next.push_back(e);
       }
     }
