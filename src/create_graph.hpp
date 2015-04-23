@@ -6,6 +6,8 @@
 # include <osmium/osm.hpp>
 # include <osmium/handler.hpp>
 
+# include <map>
+
 class CreateGraph : public osmium::handler::Handler
 {
   typedef std::map<osmium::unsigned_object_id_type, vertex_type> node_id_map_type;

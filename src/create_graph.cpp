@@ -1,9 +1,9 @@
 #include "create_graph.hpp"
 
-#include <osmium/geom/haversine.hpp>
+#include <osmium/geom/mercator_projection.hpp>
 
-CreateGraph::CreateGraph(graph_type& graph):
-  graph(graph)
+CreateGraph::CreateGraph(graph_type& graph)
+  : graph(graph)
 {}
 
 void CreateGraph::way(const osmium::Way& way)
@@ -23,16 +23,20 @@ void CreateGraph::way(const osmium::Way& way)
 
     if (inserted)
     {
-      pos->second = boost::add_vertex(node_ref.location(), graph);
+      const Location loc(osmium::geom::detail::lon_to_x(node_ref.lon()),
+                         osmium::geom::detail::lat_to_y(node_ref.lat()));
+      pos->second = boost::add_vertex(loc, graph);
     }
 
-    const vertex_type v = pos->second;
+    const vertex_type& v = pos->second;
 
     if (u+1)
     {
-      const double l = osmium::geom::haversine::distance(osmium::geom::Coordinates(boost::get(boost::vertex_name, graph, u)),
-                                                         osmium::geom::Coordinates(boost::get(boost::vertex_name, graph, v)));
-      boost::add_edge(u, v, l, graph);
+      const Location& a = boost::get(boost::vertex_name, graph, u);
+      const Location& b = boost::get(boost::vertex_name, graph, v);
+      const double length = dist(a, b);
+
+      boost::add_edge(u, v, length, graph);
     }
 
     u = v;

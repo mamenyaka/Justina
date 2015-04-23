@@ -6,6 +6,7 @@
 
 # include <QObject>
 
+# include <vector>
 # include <random>
 
 class QGraphicsScene;
@@ -18,7 +19,7 @@ class Traffic : public QObject
 
   std::vector<Car> cars;
   std::default_random_engine gen;
-  static constexpr int sleep = 100;                         // simulation timestep
+  static constexpr unsigned int sleep = 100;                // simulation timestep
 
   void navigate(Car& car);
 
@@ -27,7 +28,7 @@ public:
 
   void init_graph(const std::string& in);
   void init_map(QGraphicsScene *scene);
-  void init_traffic(const int civil, const int gangster, const int cop);
+  void init_traffic(const unsigned int civil, const unsigned int gangster, const unsigned int cop);
   void update();
 
   const int get_sleep() const;

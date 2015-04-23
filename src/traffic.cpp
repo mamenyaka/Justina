@@ -6,15 +6,13 @@
 #include <osmium/index/map/sparse_mem_table.hpp>
 #include <osmium/handler/node_locations_for_ways.hpp>
 #include <osmium/visitor.hpp>
-#include <osmium/geom/haversine.hpp>
-#include <osmium/geom/mercator_projection.hpp>
 
 #include <QGraphicsScene>
 
 #include <iostream>
 
-Traffic::Traffic(QObject* parent):
-  QObject(parent)
+Traffic::Traffic(QObject* parent)
+  : QObject(parent)
 {
   std::random_device rd;
   gen.seed(rd());
@@ -48,15 +46,14 @@ void Traffic::init_map(QGraphicsScene* scene)
     const edge_type& e = *it;
     const vertex_type& u = boost::source(e, graph);
     const vertex_type& v = boost::target(e, graph);
-    const osmium::Location& a = boost::get(boost::vertex_name, graph, u);
-    const osmium::Location& b = boost::get(boost::vertex_name, graph, v);
+    const Location& a = boost::get(boost::vertex_name, graph, u);
+    const Location& b = boost::get(boost::vertex_name, graph, v);
 
-    scene->addLine(osmium::geom::detail::lon_to_x(a.lon()), -osmium::geom::detail::lat_to_y(a.lat()),
-                   osmium::geom::detail::lon_to_x(b.lon()), -osmium::geom::detail::lat_to_y(b.lat()), QPen(Qt::white, 0));
+    scene->addLine(a.x, -a.y, b.x, -b.y, QPen(Qt::white, 0));
   }
 }
 
-void Traffic::init_traffic(const int civil, const int gangster, const int cop)
+void Traffic::init_traffic(const unsigned int civil, const unsigned int gangster, const unsigned int cop)
 {
   std::cerr << "Populating traffic with "
             << civil << " civil, "
@@ -64,36 +61,34 @@ void Traffic::init_traffic(const int civil, const int gangster, const int cop)
             << cop << " cop cars" << std::endl;
 
   std::uniform_int_distribution<unsigned long> uni_dis(0, boost::num_edges(graph)-1);
-  std::normal_distribution<> norm_dis(0.0, 5.0);
 
-  const int sum = civil + gangster + cop;
+  const unsigned int sum = civil + gangster + cop;
   for (int i = 0; i < sum; i++)
   {
-    CarType::value type;
-    double speed;
+    Car::Type type;
+    double max_speed;
 
     if (i < civil)
     {
-      type = CarType::Civil;
-      speed = 15.0 + norm_dis(gen);
+      type = Car::Civil;
+      max_speed = 10.0;
     }
     else if (i < civil + gangster)
     {
-      type = CarType::Gangster;
-      speed = 20.0 + norm_dis(gen);
+      type = Car::Gangster;
+      max_speed = 20.0;
     }
     else
     {
-      type = CarType::Cop;
-      speed = 20.0 + norm_dis(gen);
+      type = Car::Cop;
+      max_speed = 25.0;
     }
 
     const edge_type& e = *std::next(boost::edges(graph).first, uni_dis(gen));
     const vertex_type& v = boost::source(e, graph);
-    const osmium::Location& loc = boost::get(boost::vertex_name, graph, v);
+    const Location& loc = boost::get(boost::vertex_name, graph, v);
 
-    Car car(type, e, v, loc, speed);
-    cars.push_back(car);
+    cars.push_back(Car(type, e, v, loc, max_speed));
   }
 
   std::cerr << "cars: " << cars.size() << std::endl;
@@ -109,51 +104,48 @@ void Traffic::update()
 
 void Traffic::navigate(Car& car)
 {
-  vertex_type u;                                            // exit point for current road
-  if ((u = boost::target(car.curr, graph)) == car.prev)
+  vertex_type exit_point;
+  if ((exit_point = boost::target(car.curr_edge, graph)) == car.entry_point)
   {
-    u = boost::source(car.curr, graph);
+    exit_point = boost::source(car.curr_edge, graph);
   }
 
-  const osmium::Location& loc = boost::get(boost::vertex_name, graph, u);
+  const Location& exit_loc = boost::get(boost::vertex_name, graph, exit_point);
 
-  const double dist = car.speed*(sleep/1000.0);             // maximum length a car can travel in one turn
-  const double l = osmium::geom::haversine::distance(osmium::geom::Coordinates(car.loc), osmium::geom::Coordinates(loc));
+  const double max_travel_dist = car.max_speed*(sleep/1000.0);
+  const double remaining_road_length = dist(exit_loc, car.loc);
 
-  if (dist < l)                                             // car travels straigth, no intersections
+  if (max_travel_dist < remaining_road_length)
   {
-    const double ang = std::atan2(osmium::geom::detail::lat_to_y(loc.lat()) - osmium::geom::detail::lat_to_y(car.loc.lat()),
-                                  osmium::geom::detail::lon_to_x(loc.lon()) - osmium::geom::detail::lon_to_x(car.loc.lon()));
-    const double x = std::cos(ang) * dist;
-    const double y = std::sin(ang) * dist;
+    const double l = max_travel_dist/remaining_road_length;
 
-    car.loc.set_lon(osmium::geom::detail::x_to_lon(osmium::geom::detail::lon_to_x(car.loc.lon()) + x));
-    car.loc.set_lat(osmium::geom::detail::y_to_lat(osmium::geom::detail::lat_to_y(car.loc.lat()) + y));
+    car.loc.x += (exit_loc.x - car.loc.x)*l;
+    car.loc.y += (exit_loc.y - car.loc.y)*l;
   }
-  else                                                      // possible intersection
+  else
   {
-    std::vector<edge_type> next;                              // next available roads
+    std::vector<edge_type> next_road;
 
     graph_type::out_edge_iterator it, end;
-    boost::tie(it, end) = boost::out_edges(u, graph);
+    boost::tie(it, end) = boost::out_edges(exit_point, graph);
     for ( ; it != end; ++it)
     {
       const edge_type& e = *it;
-      if (e != car.curr)
+      if (e != car.curr_edge)
       {
-        next.push_back(e);
+        next_road.push_back(e);
       }
     }
 
-    if (!next.empty())
+    if (!next_road.empty())
     {
-      std::uniform_int_distribution<int> dis(0, next.size()-1);
+      std::uniform_int_distribution<int> dis(0, next_road.size()-1);
 
-      car.curr = next[dis(gen)];
+      car.curr_edge = next_road[dis(gen)];
     }
 
-    car.prev = u;
-    car.loc = loc;
+    car.entry_point = exit_point;
+    car.loc = exit_loc;
   }
 }
 
