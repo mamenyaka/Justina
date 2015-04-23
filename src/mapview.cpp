@@ -39,7 +39,7 @@ void MapView::init(const std::string& in)
 
     if (car.type == Car::Civil)
     {
-      brush.setColor(Qt::gray);
+      brush.setColor(Qt::green);
     }
     else if (car.type == Car::Gangster)
     {
@@ -76,7 +76,18 @@ void MapView::paintEvent(QPaintEvent* event)
   {
     QGraphicsEllipseItem* item = *(it1++);
     const Car& car = *(it2++);
-    item->setPos(car.loc.x - car_size/2, -car.loc.y - car_size/2);
+
+    if (car.type == Car::Caught)
+    {
+      if (item->brush().color() != Qt::gray)
+      {
+        item->setBrush(QBrush(Qt::gray));
+      }
+    }
+    else
+    {
+      item->setPos(car.loc.x - car_size/2, -car.loc.y - car_size/2);
+    }
   }
 }
 

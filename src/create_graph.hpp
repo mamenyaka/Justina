@@ -11,7 +11,7 @@
 class CreateGraph : public osmium::handler::Handler
 {
   typedef std::map<osmium::unsigned_object_id_type, vertex_type> node_id_map_type;
-  node_id_map_type node_id_map;                             // so that each node gets added only once
+  node_id_map_type node_id_map;
 
   graph_type& graph;
 

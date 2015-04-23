@@ -9,6 +9,8 @@
 
 #include <QGraphicsScene>
 
+#include <boost/graph/astar_search.hpp>
+
 #include <iostream>
 
 Traffic::Traffic(QObject* parent)
@@ -44,8 +46,8 @@ void Traffic::init_map(QGraphicsScene* scene)
   for ( ; it != end; ++it)
   {
     const edge_type& e = *it;
-    const vertex_type& u = boost::source(e, graph);
-    const vertex_type& v = boost::target(e, graph);
+    const vertex_type u = boost::source(e, graph);
+    const vertex_type v = boost::target(e, graph);
     const Location& a = boost::get(boost::vertex_name, graph, u);
     const Location& b = boost::get(boost::vertex_name, graph, v);
 
@@ -55,9 +57,11 @@ void Traffic::init_map(QGraphicsScene* scene)
 
 void Traffic::init_traffic(const unsigned int civil, const unsigned int gangster, const unsigned int cop)
 {
+  remaining_gangsters = gangster;
+
   std::cerr << "Populating traffic with "
-            << civil << " civil, "
-            << gangster << " gangster and "
+            << civil << " civil cars, "
+            << gangster << " gangster cars and "
             << cop << " cop cars" << std::endl;
 
   std::uniform_int_distribution<unsigned long> uni_dis(0, boost::num_edges(graph)-1);
@@ -65,30 +69,22 @@ void Traffic::init_traffic(const unsigned int civil, const unsigned int gangster
   const unsigned int sum = civil + gangster + cop;
   for (int i = 0; i < sum; i++)
   {
-    Car::Type type;
-    double max_speed;
+    const edge_type& e = *std::next(boost::edges(graph).first, uni_dis(gen));
+    const vertex_type v = boost::source(e, graph);
+    const Location& loc = boost::get(boost::vertex_name, graph, v);
 
     if (i < civil)
     {
-      type = Car::Civil;
-      max_speed = 10.0;
+      cars.push_back(Car(Car::Civil, 10.0, loc, e, v));
     }
     else if (i < civil + gangster)
     {
-      type = Car::Gangster;
-      max_speed = 20.0;
+      cars.push_back(Car(Car::Gangster, 20.0, loc, e, v));
     }
     else
     {
-      type = Car::Cop;
-      max_speed = 25.0;
+      cars.push_back(Car(Car::Cop, 100.0, loc, e, v));
     }
-
-    const edge_type& e = *std::next(boost::edges(graph).first, uni_dis(gen));
-    const vertex_type& v = boost::source(e, graph);
-    const Location& loc = boost::get(boost::vertex_name, graph, v);
-
-    cars.push_back(Car(type, e, v, loc, max_speed));
   }
 
   std::cerr << "cars: " << cars.size() << std::endl;
@@ -98,11 +94,32 @@ void Traffic::update()
 {
   for (Car& car : cars)
   {
-    navigate(car);
+    switch (car.type)
+    {
+    case Car::Civil:
+    case Car::Gangster:
+      navigate(car);
+      break;
+    case Car::Cop:
+      Car *nearest_gangster = nearest(Car::Gangster, car.loc);
+
+      if (nearest_gangster != nullptr &&
+          car.curr_edge == nearest_gangster->curr_edge &&
+          dist(car.loc, nearest_gangster->loc) < car.max_speed*(sleep/1000.0))
+      {
+        std::cerr << "Gangster car caught! Remaining: " << --remaining_gangsters << std::endl;
+
+        nearest_gangster->type = Car::Caught;
+        nearest_gangster = nullptr;
+      }
+
+      navigate(car, nearest_gangster);
+      break;
+    }
   }
 }
 
-void Traffic::navigate(Car& car)
+void Traffic::navigate(Car& car, Car* nearest_gangster)
 {
   vertex_type exit_point;
   if ((exit_point = boost::target(car.curr_edge, graph)) == car.entry_point)
@@ -124,29 +141,126 @@ void Traffic::navigate(Car& car)
   }
   else
   {
-    std::vector<edge_type> next_road;
-
-    graph_type::out_edge_iterator it, end;
-    boost::tie(it, end) = boost::out_edges(exit_point, graph);
-    for ( ; it != end; ++it)
+    if (nearest_gangster != nullptr)
     {
-      const edge_type& e = *it;
-      if (e != car.curr_edge)
+      try
       {
-        next_road.push_back(e);
+        vertex_type goal = nearest_gangster->entry_point;
+
+        if (goal ==  exit_point)
+        {
+          if ((goal = boost::target(nearest_gangster->curr_edge, graph)) == nearest_gangster->entry_point)
+          {
+            goal = boost::source(nearest_gangster->curr_edge, graph);
+          }
+        }
+
+        car.curr_edge = next_routed_edge(exit_point, goal);
       }
+      catch (std::exception& e)
+      {}
     }
-
-    if (!next_road.empty())
+    else
     {
-      std::uniform_int_distribution<int> dis(0, next_road.size()-1);
-
-      car.curr_edge = next_road[dis(gen)];
+      car.curr_edge = next_random_edge(exit_point, car.curr_edge);
     }
 
     car.entry_point = exit_point;
     car.loc = exit_loc;
   }
+}
+
+const edge_type Traffic::next_random_edge(const vertex_type exit_point, const edge_type curr_edge)
+{
+  std::vector<edge_type> next_edges;
+
+  graph_type::out_edge_iterator it, end;
+  boost::tie(it, end) = boost::out_edges(exit_point, graph);
+  for ( ; it != end; ++it)
+  {
+    const edge_type& e = *it;
+    if (e != curr_edge)
+    {
+      next_edges.push_back(e);
+    }
+  }
+
+  if (!next_edges.empty())
+  {
+    std::uniform_int_distribution<int> dis(0, next_edges.size()-1);
+
+    return next_edges[dis(gen)];
+  }
+  else
+  {
+    return curr_edge;
+  }
+}
+
+class distance_heuristic : public boost::astar_heuristic<graph_type, double>
+{
+  graph_type& graph;
+  const Location& goal;
+
+public:
+  distance_heuristic(graph_type& graph, const Location& goal)
+    : graph(graph),
+      goal(goal)
+  {}
+
+  double operator()(const vertex_type u)
+  {
+    const Location& a = boost::get(boost::vertex_name, graph, u);
+    return dist(a, goal);
+  }
+};
+
+const edge_type Traffic::next_routed_edge(const vertex_type start, const vertex_type goal)
+{
+  const Location& loc = boost::get(boost::vertex_name, graph, goal);
+
+  std::vector<vertex_type> predecessor_map(boost::num_vertices(graph));
+
+  boost::astar_search_tree(graph, start, distance_heuristic(graph, loc),
+                           boost::predecessor_map(
+                             boost::make_iterator_property_map(
+                               predecessor_map.begin(), get(boost::vertex_index, graph))));
+
+  if (goal != predecessor_map[goal])
+  {
+    vertex_type v, next;
+    for (v = goal; v != start; v = predecessor_map[v])
+      if (predecessor_map[v] == start)
+        next = v;
+
+    return boost::edge(start, next, graph).first;
+  }
+  else
+  {
+    throw std::exception();
+  }
+}
+
+Car* Traffic::nearest(const Car::Type type, const Location& loc)
+{
+  double max = 1000000000.0;
+  Car *nearest = nullptr;
+
+  for (Car& car : cars)
+  {
+    if (car.type == type)
+    {
+      const double d = dist(loc, car.loc);
+
+      if (d < max)
+      {
+        max = d;
+        nearest = &car;
+      }
+    }
+  }
+
+  return nearest;
 }
 
 const int Traffic::get_sleep() const

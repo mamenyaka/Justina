@@ -23,12 +23,11 @@ void CreateGraph::way(const osmium::Way& way)
 
     if (inserted)
     {
-      const Location loc(osmium::geom::detail::lon_to_x(node_ref.lon()),
-                         osmium::geom::detail::lat_to_y(node_ref.lat()));
-      pos->second = boost::add_vertex(loc, graph);
+      pos->second = boost::add_vertex(Location(osmium::geom::detail::lon_to_x(node_ref.lon()),
+                                               osmium::geom::detail::lat_to_y(node_ref.lat())), graph);
     }
 
-    const vertex_type& v = pos->second;
+    const vertex_type v = pos->second;
 
     if (u+1)
     {

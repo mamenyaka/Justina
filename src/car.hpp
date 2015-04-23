@@ -6,23 +6,25 @@
 class Car
 {
 public:
-  enum Type { Civil, Gangster, Cop };
+  enum Type { Caught, Civil, Gangster, Cop };
 
-  const Type type;
+  Type type;
+  const double max_speed;
+  Location loc;
+
   edge_type curr_edge;
   vertex_type entry_point;
-  Location loc;
-  const double max_speed;
-  double curr_speed = 0.0;                                  // TODO
 
-  Car(const Type type,
-      const edge_type& curr_edge, const vertex_type& entry_point,
-      const Location& loc, const double max_speed)
+  // TODO
+  double curr_speed = 0.0;
+
+  Car(const Type type, const double max_speed, const Location& loc,
+      const edge_type& curr_edge, const vertex_type entry_point)
     : type(type),
-      curr_edge(curr_edge),
-      entry_point(entry_point),
+      max_speed(max_speed),
       loc(loc),
-      max_speed(max_speed)
+      curr_edge(curr_edge),
+      entry_point(entry_point)
   {}
 };
 
