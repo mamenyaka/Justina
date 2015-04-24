@@ -17,14 +17,15 @@ class Traffic : public QObject
   graph_type graph;
 
   std::vector<Car> cars;
+  std::vector<Car*> civil_cars, gangster_cars, cop_cars;
   std::default_random_engine gen;
-  const unsigned int sleep = 100;                // simulation timestep
-  unsigned int remaining_gangsters;
+  const unsigned int sleep = 100;
 
-  void navigate(Car& car, Car* nearest_gangster = nullptr);
-  const edge_type next_random_edge(const vertex_type exit_point, const edge_type curr_edge);
-  const edge_type next_routed_edge(const vertex_type start, const vertex_type goal);
-  Car* nearest(const Car::Type type, const Location& loc);
+  const vertex_type get_other_vertex_for_edge(const edge_type& edge, const vertex_type not_this_vertex);
+  const std::vector<edge_type> get_other_edges_for_vertex(const vertex_type vertex, const edge_type& not_this_edge);
+  const edge_type get_next_routed_edge(const vertex_type start, const vertex_type goal);
+
+  void navigate(Car& car);
 
 public:
   Traffic(QObject* parent = 0);
@@ -32,6 +33,7 @@ public:
   void init_graph(const std::string& in);
   void init_map(QGraphicsScene* scene);
   void init_traffic(const unsigned int civil, const unsigned int gangster, const unsigned int cop);
+
   void update();
 
   const int get_sleep() const;
