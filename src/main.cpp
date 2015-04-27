@@ -24,6 +24,12 @@
 
 int main(int argc, char *argv[])
 {
+  std::cerr << "Justina Robocar City Emulator, Copyright (C) 2015 András Mamenyák" << std::endl
+            << "This program comes with ABSOLUTELY NO WARRANTY;" << std::endl
+            << "This is free software, and you are welcome to redistribute it" << std::endl
+            << "under certain conditions." << std::endl
+            << std::endl;
+
   if (argc < 2)
   {
     std::cerr << "Usage: Monitor OSM_FILE\n";
