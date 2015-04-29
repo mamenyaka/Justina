@@ -1,5 +1,4 @@
 Prerequisites:
-
     Qt5
     Boost
     libosmium
@@ -14,4 +13,5 @@ Build:
 Run:
     src/Mapview ../map.osm
 
-A map.osm letölthető (Export) innen: http://www.openstreetmap.org/export#map=13/47.5329/21.6423
+map.osm:
+    Export from: http://www.openstreetmap.org/export#map=13/47.5329/21.6423
